@@ -1,0 +1,184 @@
+network:
+  name: "PlanWeaver"
+  mode: "centralized"
+  node_id: "plan-weaver-1"  # 当前节点的唯一标识
+  
+  # Transport configuration
+  transports:
+    - type: "http"
+      config:
+        port: 8700
+        serve_studio: true # 在该端口提供管理/可视化界面
+        serve_mcp: true # 暴露 MCP 接口便于外部工具集成
+    - type: "grpc"
+      config:
+        port: 8600
+        max_message_size: 104857600 # 最大消息尺寸（字节），约 100MB
+        compression: "gzip" # 启用压缩以降低带宽
+        keepalive_time: 60000 # Keepalive 心跳间隔（毫秒）
+        keepalive_timeout: 30000 # Keepalive 超时（毫秒）
+  
+  manifest_transport: "http"  # 清单与元数据通过 HTTP 暴露
+  recommended_transport: "grpc" # 业务通信建议优先使用 gRPC
+
+  # Security configuration
+  encryption_enabled: false  # 是否启用传输层加密（演示关闭）
+
+  # Discovery configuration
+  discovery_interval: 10  # 节点发现轮询间隔（秒）
+  discovery_enabled: true  # 是否启用网络节点发现
+
+  # Connection management
+  max_connections: 10  # 最大并发连接数
+  connection_timeout: 30.0  # 建立连接超时（秒）
+  retry_attempts: 3  # 连接失败重试次数
+  heartbeat_interval: 60  # 心跳间隔（秒）
+  agent_timeout: 180  # 代理失联判定阈值（秒）
+
+   # Messaging configuration
+  message_queue_size: 1000  # 内部消息队列容量
+  message_timeout: 30.0  # 消息处理/等待超时（秒）
+  message_routing_enabled: true  # 启用基于上下文的消息路由
+  
+  default_agent_group: guest  # 未指定组时的默认分组
+  requires_password: false  # 是否默认要求密码（演示关闭）
+
+  # Agent group configuration（RBAC）
+  agent_groups:
+    coordinators:
+      description: "Task coordination and orchestration"
+      password_hash: "feee32d665b47e4fbbccde02114d420c14c2768b1307d38d9422b9da07d4cd64" # password: coordinator_pass
+      metadata:
+        permissions: ["delegate_tasks", "communicate_with_users"]
+        agents:
+          - "broker_agent"
+    executors:
+      description: "Task execution workers"
+      password_hash: "b8ce5744c843477d01789bd33033d906a70095e10526cbeadcb8ed6480c100a7" # password: executor_pass
+      metadata:
+        permissions: ["execute_tasks", "report_results"]
+        agents:
+          - "outline_agent"
+          - "evidence_agent"
+          - "plan_agent"
+          - "draft_agent"
+    reviewers:
+      description: "Output validation and quality control"
+      password_hash: "d1f28c8009ff9f1b4674dfd4eb6ae98c8744c90c5e8d8ba01f46828f241ff663" # password: reviewer_pass
+      metadata:
+        permissions: ["validate_outputs", "request_changes"]
+        agents:
+          - "reviewer_agent"
+
+  # Mod configuration - project mod only
+  mods:
+    - name: "openagents.mods.workspace.default"
+      enabled: true
+      config:
+        custom_events_enabled: true
+    - name: "openagents.mods.workspace.project"
+      enabled: true
+      config:
+        max_concurrent_projects: 5
+        project_templates:
+          proposal_preparation:
+            name: "Proposal Preparation"
+            description: "Structured proposal generation from a user brief"
+            agent_groups: ["coordinators", "executors", "reviewers"]
+            context: |
+              PlanWeaver Event-Driven Proposal Workflow
+
+              This workflow uses event-driven coordination to generate comprehensive proposals:
+
+              1. project.notification.started
+                 → Broker receives user brief and sends welcome message
+                 → Broker delegates task to outline_agent
+
+              2. outline_agent completes (task.complete)
+                 → Broker sends plan and evidence tasks in parallel
+
+              3. plan_agent + evidence_agent complete (task.complete)
+                 → Broker waits for both, then delegates to draft_agent
+
+              4. draft_agent completes (task.complete)
+                 → Broker delegates to reviewer_agent
+
+              5. reviewer_agent completes (task.complete)
+                 → If PASS: Broker compiles final proposal and completes project
+                 → If RETRY: Broker re-delegates with feedback
+
+              Events used: project.notification.started, task.delegate, task.complete
+          event_planning:
+            name: "Event Planning"
+            description: "Plan an event with timeline, budget and logistics"
+            agent_groups: ["coordinators", "executors", "reviewers"]
+            context: |
+              Event Planning Event-Driven Workflow
+
+              1. project.notification.started
+                 → Broker receives event brief and delegates outline
+
+              2. outline_agent creates agenda structure
+                 → Broker triggers parallel: plan (schedule/budget) + evidence (venue/suppliers)
+
+              3. Both plan_agent and evidence_agent complete
+                 → Broker delegates draft compilation
+
+              4. draft_agent produces final event plan
+                 → Reviewer validates feasibility and quality
+
+              5. reviewer_agent returns verdict
+                 → PASS: Final event plan delivered
+                 → RETRY: Specific revisions requested
+          initiative_launch:
+            name: "Initiative Launch"
+            description: "Launch plan for a new initiative or project"
+            agent_groups: ["coordinators", "executors", "reviewers"]
+            context: |
+              Initiative Launch Event-Driven Workflow
+
+              1. project.notification.started
+                 → Broker defines scope and delegates outline
+
+              2. outline_agent structures launch plan
+                 → Broker triggers parallel: plan (roadmap/risks) + evidence (market/stakeholders)
+
+              3. Both plan_agent and evidence_agent complete
+                 → Broker delegates draft compilation
+
+              4. draft_agent compiles comprehensive launch document
+                 → Reviewer verifies completeness
+
+              5. reviewer_agent returns verdict
+                 → PASS: Launch plan approved
+                 → RETRY: Refinements needed
+
+# Network profile for discovery
+network_profile:
+  discoverable: true # 允许被发现服务索引/展示
+  name: "PlanWeaver"
+  description: "Event-driven proposal generation network. Broker coordinates specialized agents (outline, evidence, plan, draft) with quality review to create comprehensive proposals."
+  tags:
+    - "demo"
+    - "proposal"
+    - "planning"
+    - "workflow"
+    - "rbac"
+    - "orchestration"
+  categories:
+    - "demo"
+    - "workflow"
+  country: "Worldwide"
+  required_openagents_version: "0.6.13"  # 运行所需最低版本
+  capacity: 10 # 对外宣告的可服务容量
+  authentication:
+    type: "none" # 画像层无需外部认证（演示）
+  host: "0.0.0.0" # 监听所有地址
+  port: 8700 # 对外 HTTP 端口
+
+# Global settings
+log_level: "INFO"  # 日志等级
+data_dir: "./data/plan-weaver"  # 数据持久化目录（相对路径）
+
+runtime_limit: null  # 运行时长上限（null 表示无限制）
+shutdown_timeout: 30  # 优雅关闭等待时间（秒）
