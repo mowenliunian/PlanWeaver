@@ -5,7 +5,9 @@ type: "openagents.agents.collaborator_agent.CollaboratorAgent"
 agent_id: "broker_agent"
 
 config:
-  model_name: "gpt-4o-mini"
+  model_name: "${LLM_MODEL_NAME}"
+  api_base: "${LLM_API_BASE}"
+  api_key: "${LLM_API_KEY}"
 
   # Allow enough iterations for multi-step coordination
   max_iterations: 15

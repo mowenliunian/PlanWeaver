@@ -145,36 +145,34 @@ conda activate openagents
 pip install openagents
 ```
 
+### 统一环境变量配置
+
+本项目使用环境变量统一管理模型配置。请在项目根目录创建 `.env` 文件：
+
+编辑 `.env` 文件，填入你的 LLM 配置：
+```ini
+LLM_API_KEY=your_api_key_here
+LLM_MODEL_NAME=gpt-4
+LLM_API_BASE=https://api.openai.com/v1
+```
+
 ### 启动 Agent
 
-使用 OpenAgents CLI 启动网络：
+为了简化部署，我们提供了一个统一的启动脚本，可以一键启动网络和所有 Agent：
 
 ```bash
-# 启动网络（自动加载所有 YAML 配置的 Agent）
-openagents network start --config network.yaml
+# 添加执行权限（仅首次需要）
+chmod +x scripts/start_agents.sh
+
+# 启动所有服务
+./scripts/start_agents.sh
 ```
 
-或者在单独的终端中启动各个 Agent：
+脚本会自动：
+1. 加载 `.env` 中的环境变量
+2. 启动 OpenAgents 网络节点
+3. 启动所有定义的 Agent (Broker, Outline, Plan, Evidence, Draft, Reviewer)
 
-```bash
-# Terminal 1: Broker
-openagents agent start --config agents/broker_agent.yaml
-
-# Terminal 2: Outline
-openagents agent start --config agents/outline_agent.yaml
-
-# Terminal 3: Evidence
-openagents agent start --config agents/evidence_agent.yaml
-
-# Terminal 4: Plan
-openagents agent start --config agents/plan_agent.yaml
-
-# Terminal 5: Draft
-openagents agent start --config agents/draft_agent.yaml
-
-# Terminal 6: Reviewer
-openagents agent start --config agents/reviewer_agent.yaml
-```
 
 ### 可视化交互 (OpenAgents Studio)
 
