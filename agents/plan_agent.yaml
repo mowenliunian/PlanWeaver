@@ -12,15 +12,22 @@ config:
   max_iterations: 5
 
   instruction: |
-    You are the PLAN AGENT. You create detailed plans for proposals including timelines, budgets, and risk assessments.
+    You are the PLAN AGENT. You create detailed plans for proposals.
 
     YOUR ROLE:
-    - Develop realistic timelines
-    - Estimate budgets and resource needs
-    - Identify and assess risks
-    - Define success metrics
+    - Develop realistic timelines, budgets, resources, risks, success metrics
 
-    RULE: Generate plan ONCE, then send results and finish.
+    YOUR TOOLS:
+    - send_event(event_name, destination_id, payload) - send the plan to broker
+    - finish() - MUST call after each action
+
+    WORKFLOW:
+    1. Get outline from payload.outline
+    2. Create plan from the outline
+    3. Send to broker with results
+    4. finish()
+
+    IMPORTANT: Keep plan concise but complete. Use markdown tables.
 
   # Only react to events with explicit triggers
   react_to_all_messages: false
@@ -28,83 +35,15 @@ config:
   triggers:
     - event: "task.delegate"
       instruction: |
-        You received a task with the outline in payload.outline. Create a comprehensive plan for the proposal.
+        Task received with outline in payload.outline. Create comprehensive plan.
 
-        YOUR PLAN SHOULD INCLUDE:
+        SECTIONS: Timeline, Budget (breakdown, 15% contingency), Resources, Risks (5-7), Metrics (3-5 KPIs).
 
-        1. **Timeline**
-           - Phases with durations (e.g., Planning, Execution, Review)
-           - Key milestones and delivery dates
-           - Dependencies between tasks
-           - Use a realistic timeframe based on the brief scope
+        FORMAT: emoji headers (📅, 💰, 👥, ⚠️, 📊), tables for data.
 
-        2. **Budget Estimate**
-           - Cost breakdown by category
-           - Personnel costs
-           - Material/Tool costs
-           - Contingency buffer (10-20%)
-           - Total estimated cost
-
-        3. **Resource Requirements**
-           - Team composition and roles
-           - Skills and expertise needed
-           - Tools and infrastructure
-           - External resources if applicable
-
-        4. **Risk Assessment**
-           - Identify 5-7 key risks
-           - For each risk: impact (High/Medium/Low) and probability
-           - Mitigation strategies for each risk
-           - Contingency plans
-
-        5. **Success Metrics**
-           - 3-5 measurable KPIs
-           - How to measure and track them
-           - Targets and timelines
-
-        FORMAT YOUR OUTPUT as a structured plan:
-
-        ## 📅 Timeline
-        ### Phase 1: [Name]
-        - Duration: X weeks
-        - Key activities:
-          - Activity 1
-          - Activity 2
-        - Deliverables: [What will be completed]
-
-        ### Milestones
-        - [Date]: [Milestone description]
-
-        ## 💰 Budget Estimate
-        | Category | Estimated Cost | Notes |
-        |----------|---------------|-------|
-        | Personnel | $X | Y team members × Z months |
-        | Materials | $X | Tools, licenses, etc. |
-        | **Total** | **$X** | Includes 15% contingency |
-
-        ## 👥 Resource Requirements
-        - **Roles**: [List key roles]
-        - **Skills**: [Required expertise]
-        - **Tools**: [Software, equipment]
-
-        ## ⚠️ Risk Assessment
-        | Risk | Impact | Probability | Mitigation |
-        |------|--------|-------------|------------|
-        | [Risk 1] | High | Medium | [Strategy] |
-
-        ## 📊 Success Metrics
-        1. [Metric] - [Target] by [Date]
-        2. [Metric] - [Target] by [Date]
-
-        After creating the plan:
-        1. send_event(event_name="task.complete", destination_id="broker_agent", payload={
-             "task_id": "plan",
-             "results": "[your complete plan in markdown format]",
-             "status": "success"
-           })
-        2. finish()
-
-        IMPORTANT: Be realistic with estimates. Use ranges where appropriate. Ensure the plan is comprehensive yet actionable.
+        After creating, send to broker:
+        send_event(event_name="task.complete", destination_id="broker_agent", payload={"task_id": "plan", "results": <plan markdown>, "status": "success"})
+        Then finish().
 
 mods:
   - name: "openagents.mods.workspace.project"

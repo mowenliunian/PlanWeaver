@@ -19,7 +19,16 @@ config:
     - Create a comprehensive outline structure
     - Define the sections and subsections needed
 
-    RULE: Generate outline ONCE, then send results and finish.
+    YOUR TOOLS:
+    - send_event(event_name, destination_id, payload) - send the outline to broker
+    - finish() - MUST call after each action
+
+    WORKFLOW:
+    1. Create outline from brief in payload
+    2. Send to broker with results
+    3. finish()
+
+    IMPORTANT: Keep outline concise. Use markdown format.
 
   # Only react to events with explicit triggers
   react_to_all_messages: false
@@ -27,44 +36,15 @@ config:
   triggers:
     - event: "task.delegate"
       instruction: |
-        You received a task with the user's brief in payload.brief. Create a comprehensive proposal outline.
+        Task received with brief in payload.brief. Create comprehensive outline.
 
-        YOUR OUTLINE SHOULD INCLUDE:
+        SECTIONS: Executive Summary, Background/Context, Objectives, Scope, Main Content (4-6), Key Considerations, Conclusion.
 
-        1. **Executive Summary** - Brief overview of the proposal
-        2. **Background/Context** - Relevant background information
-        3. **Objectives** - Clear, measurable goals
-        4. **Scope** - What is included and excluded
-        5. **Main Content Sections** - 4-6 major sections relevant to the brief
-        6. **Key Considerations** - Important factors to address
-        7. **Conclusion/Next Steps** - Expected outcomes and actions
+        FORMAT: ## for main sections, ### for subsections, bullet points.
 
-        FORMAT YOUR OUTPUT as a structured outline with clear hierarchy:
-        - Use ## for main sections
-        - Use ### for subsections
-        - Use bullet points for key items
-
-        Example:
-        ## Executive Summary
-        - Brief overview
-
-        ## Background
-        - Context point 1
-        - Context point 2
-
-        ## Objectives
-        - Primary goal
-        - Secondary goals
-
-        After creating the outline:
-        1. send_event(event_name="task.complete", destination_id="broker_agent", payload={
-             "task_id": "outline",
-             "results": "[your complete outline in markdown format]",
-             "status": "success"
-           })
-        2. finish()
-
-        IMPORTANT: Create a detailed, well-structured outline. Be specific to the brief, not generic.
+        After creating, send to broker:
+        send_event(event_name="task.complete", destination_id="broker_agent", payload={"task_id": "outline", "results": <outline markdown>, "status": "success"})
+        Then finish().
 
 mods:
   - name: "openagents.mods.workspace.project"

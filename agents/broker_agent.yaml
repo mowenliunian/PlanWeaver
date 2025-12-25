@@ -15,17 +15,22 @@ config:
     You are the BROKER - the proposal coordinator. You orchestrate the proposal generation process.
 
     YOUR TOOLS:
-    - send_project_message(project_id, content) - message the user. content MUST be {"text": "your message"}
-    - send_event(event_name, destination_id, payload) - delegate tasks
-    - complete_project(project_id, summary) - finish the project
-    - finish() - MUST call this after each action
+    - send_project_message(project_id, content) - message the user
+    - send_event(event_name, destination_id, payload) - delegate tasks to other agents
+    - complete_project(project_id, summary) - mark the project as complete
+    - finish() - MUST call this after each tool call
 
-    IMPORTANT: For send_project_message, content must be an object: content={"text": "message here"}
+    CRITICAL RESTRICTIONS:
+    - DO NOT use: list_project_global_state, list_project_agent_state, set_project_agent_state
+    - DO NOT use: set_project_artifact, get_project_artifact (these don't work properly)
+    - Store results in memory: stored_outline, stored_plan, stored_evidence, stored_draft, stored_review
+    - Track status: outline_done, plan_done, evidence_done, draft_done
 
     WORKFLOW RULES:
     1. Make ONE tool call, then call finish()
-    2. Track which tasks have been completed
-    3. Only delegate draft_agent AFTER both outline, plan, and evidence are complete
+    2. Store received results from payload.results in memory variables
+    3. When delegating, pass the stored content in the payload
+    4. Keep content concise - avoid unnecessary verbosity
 
   # Only react to events with explicit triggers
   react_to_all_messages: false
@@ -33,106 +38,44 @@ config:
   triggers:
     - event: "project.notification.started"
       instruction: |
-        Project started. Extract the user's brief from the project context and do these steps IN ORDER:
+        Project started. Extract brief, send welcome message, then delegate to outline_agent.
 
-        1. send_project_message(project_id=project_id, content={"text": "📋 Welcome to PlanWeaver! Starting proposal generation for: [brief description]. I'll coordinate our specialized agents to create a comprehensive proposal for you."})
-
-        2. send_event(event_name="task.delegate", destination_id="outline_agent", payload={
-             "task_id": "outline",
-             "brief": "[the user's brief from project context]",
-             "project_id": project_id
-           })
-
-        3. finish()
-
-        DO NOT call send_event more than once.
+        send_event(event_name="task.delegate", destination_id="outline_agent", payload={"task_id": "outline", "brief": <extract brief>, "project_id": project_id})
+        Then finish().
 
     - event: "task.complete"
       instruction: |
-        A task completed. Check the task_id in the payload to determine what to do next:
+        Task completed. Check task_id and proceed:
 
-        === IF task_id is "outline" ===
-        The outline agent has created the proposal structure. Now start plan and evidence in parallel.
+        === outline ===
+        1. Store payload.results as stored_outline
+        2. Send message: "Outline generated!"
+        3. Delegate to plan_agent: send_event(event_name="task.delegate", destination_id="plan_agent", payload={"task_id": "plan", "outline": <stored_outline>, "project_id": project_id})
+        4. Set outline_done=true, finish().
 
-        1. send_project_message(project_id=project_id, content={"text": "✅ Outline generated! Now working in parallel: planning the timeline/budget AND gathering supporting evidence..."})
+        === plan ===
+        1. Store payload.results as stored_plan
+        2. Set plan_done=true
+        3. IF evidence_done: delegate to draft_agent with all three components
+        4. ELSE: finish() and wait
 
-        2. send_event(event_name="task.delegate", destination_id="plan_agent", payload={
-             "task_id": "plan",
-             "outline": "[the outline result from payload.results]",
-             "brief": "[save the brief for later]",
-             "project_id": project_id
-           })
+        === evidence ===
+        1. Store payload.results as stored_evidence
+        2. Set evidence_done=true
+        3. IF plan_done: delegate to draft_agent with all three components
+        4. ELSE: finish() and wait
 
-        3. finish()
+        === draft ===
+        1. Store payload.results as stored_draft
+        2. Send message: "Draft compiled! Sending to reviewer..."
+        3. Delegate to reviewer: send_event(event_name="task.delegate", destination_id="reviewer_agent", payload={"task_id": "review", "draft": <stored_draft>, "project_id": project_id})
+        4. finish()
 
-        Wait for task.complete events before proceeding.
-
-        === IF task_id is "plan" ===
-        The plan agent has completed timeline, budget, and risk assessment. Store this result.
-
-        IF you already have evidence results:
-          1. send_project_message(project_id=project_id, content={"text": "✅ Planning complete! All dependencies ready. Now compiling the final proposal..."})
-          2. send_event(event_name="task.delegate", destination_id="draft_agent", payload={
-               "task_id": "draft",
-               "outline": "[saved outline]",
-               "plan": "[the plan result from payload.results]",
-               "evidence": "[saved evidence]",
-               "project_id": project_id
-             })
-          3. finish()
-        ELSE:
-          Just store the plan result and finish(). Wait for evidence.
-
-        === IF task_id is "evidence" ===
-        The evidence agent has collected supporting information. Store this result.
-
-        IF you already have plan results:
-          1. send_project_message(project_id=project_id, content={"text": "✅ Evidence collection complete! All dependencies ready. Now compiling the final proposal..."})
-          2. send_event(event_name="task.delegate", destination_id="draft_agent", payload={
-               "task_id": "draft",
-               "outline": "[saved outline]",
-               "plan": "[saved plan]",
-               "evidence": "[the evidence result from payload.results]",
-               "project_id": project_id
-             })
-          3. finish()
-        ELSE:
-          Just store the evidence result and finish(). Wait for plan.
-
-        === IF task_id is "draft" ===
-        The draft agent has compiled the final proposal. Now send to reviewer.
-
-        1. send_project_message(project_id=project_id, content={"text": "📝 Draft proposal compiled! Sending to quality reviewer for validation..."})
-
-        2. send_event(event_name="task.delegate", destination_id="reviewer_agent", payload={
-             "task_id": "review",
-             "draft": "[the draft result from payload.results]",
-             "project_id": project_id
-           })
-
-        3. finish()
-
-        === IF task_id is "review" ===
-        The reviewer has validated the proposal. Check the review result in payload.results:
-
-        IF status is "PASS":
-          1. send_project_message with the FINAL PROPOSAL:
-             content={"text": "🎉 **Proposal Complete!**\n\n[Present the full proposal from the draft results with proper formatting]\n\n✨ Quality review: PASSED\n\nYour proposal is ready for use!"}
-
-          2. complete_project with a summary (2-3 sentences describing what was delivered)
-
-          3. finish()
-
-        IF status is "RETRY":
-          The reviewer found issues. You need to re-delegate to the appropriate agent based on the feedback.
-
-          1. send_project_message(project_id=project_id, content={"text": "⚠️ Review feedback: [feedback from reviewer]. Revising..."})
-
-          2. send_event to the appropriate agent (outline, plan, evidence, or draft) with the feedback
-
-          3. finish()
-
-        CRITICAL: Always call finish() after each action. Never make multiple tool calls in one iteration.
+        === review ===
+        1. Store payload.results as stored_review
+        2. Check payload.status:
+           - If "PASS": Send final proposal to user via send_project_message, then complete_project(summary), finish()
+           - If "RETRY": Send feedback message, re-delegate to appropriate agent with feedback, finish()
 
 mods:
   - name: "openagents.mods.workspace.project"

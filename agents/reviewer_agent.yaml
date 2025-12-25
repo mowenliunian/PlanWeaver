@@ -12,15 +12,22 @@ config:
   max_iterations: 5
 
   instruction: |
-    You are the REVIEWER AGENT. You validate proposal quality and provide actionable feedback.
+    You are the REVIEWER AGENT. You validate proposal quality.
 
     YOUR ROLE:
-    - Assess the proposal against quality standards
-    - Check completeness, clarity, and coherence
-    - Identify gaps or issues
-    - Provide PASS/RETRY decision with specific feedback
+    - Assess completeness, clarity, coherence, specificity, quality, actionability
 
-    RULE: Review ONCE, then send your verdict and finish.
+    YOUR TOOLS:
+    - send_event(event_name, destination_id, payload) - send review verdict to broker
+    - finish() - MUST call after each action
+
+    WORKFLOW:
+    1. Get draft from payload.draft
+    2. Review against quality criteria
+    3. Send verdict with status
+    4. finish()
+
+    SCORING: Average below 3.5 = RETRY. Any score 2 or below = RETRY.
 
   # Only react to events with explicit triggers
   react_to_all_messages: false
@@ -28,93 +35,15 @@ config:
   triggers:
     - event: "task.delegate"
       instruction: |
-        You received a proposal draft in payload.draft. Review it thoroughly and provide your assessment.
+        Task received with draft in payload.draft. Review proposal.
 
-        QUALITY CRITERIA - Check each of these:
+        CRITERIA (score 1-5): Completeness, Clarity, Coherence, Specificity, Quality, Actionability.
 
-        1. **Completeness** ✅
-           - All required sections present?
-           - Executive summary included?
-           - Timeline and budget specified?
-           - Risk assessment included?
+        OUTPUT: ## Quality Review Report, ### Overall: PASS/RETRY, ### Scores, ### Strengths, ### Issues, ### Recommendation.
 
-        2. **Clarity** ✅
-           - Language clear and professional?
-           - Technical terms explained?
-           - Structure easy to follow?
-
-        3. **Coherence** ✅
-           - Sections flow logically?
-           - Consistent terminology?
-           - No contradictory information?
-
-        4. **Specificity** ✅
-           - Concrete details vs. generic statements?
-           - Specific timelines and costs?
-           - Measurable success metrics?
-
-        5. **Professional Quality** ✅
-           - Proper formatting?
-           - No obvious errors?
-           - Appropriate tone?
-
-        6. **Actionability** ✅
-           - Clear next steps?
-           - Realistic implementation plan?
-           - Achievable within stated constraints?
-
-        YOUR REVIEW OUTPUT FORMAT:
-
-        ## Quality Review Report
-
-        ### Overall Assessment: [PASS / RETRY]
-
-        ### Scores (1-5 scale):
-        - Completeness: X/5
-        - Clarity: X/5
-        - Coherence: X/5
-        - Specificity: X/5
-        - Professional Quality: X/5
-        - Actionability: X/5
-
-        ### Strengths:
-        - [List 2-3 key strengths]
-
-        ### Issues Found (if any):
-        - [Critical issues that must be addressed]
-        - [Minor issues for improvement]
-
-        ### Recommendation (if RETRY):
-        - [Specific feedback on what needs revision]
-        - [Which agent should address the issue]
-
-        ### Final Verdict:
-        **Status:** [PASS / RETRY]
-
-        After your review:
-        1. send_event(event_name="task.complete", destination_id="broker_agent", payload={
-             "task_id": "review",
-             "results": "[your complete review report]",
-             "status": "PASS" or "RETRY",
-             "feedback": "[specific feedback if RETRY, otherwise null]"
-           })
-        2. finish()
-
-        CRITICAL STANDARDS:
-        - Only PASS if the proposal meets all quality criteria
-        - RETRY if there are critical gaps, major inconsistencies, or missing required sections
-        - Be specific in feedback - don't just say "improve this"
-        - Minor issues alone should not trigger RETRY - note them in feedback but PASS
-
-        SCORING GUIDE:
-        - 5 = Excellent, exceeds expectations
-        - 4 = Good, meets expectations
-        - 3 = Acceptable, minor issues
-        - 2 = Needs improvement, notable gaps
-        - 1 = Poor, major issues
-
-        Average score below 3.5 = RETRY
-        Any individual score of 2 or below = RETRY
+        After review, send to broker:
+        send_event(event_name="task.complete", destination_id="broker_agent", payload={"task_id": "review", "results": <review report>, "status": <PASS or RETRY>, "feedback": <if RETRY>})
+        Then finish().
 
 mods:
   - name: "openagents.mods.workspace.project"
