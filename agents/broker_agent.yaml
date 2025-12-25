@@ -12,6 +12,14 @@ config:
   max_iterations: 15
 
   instruction: |
+    === CRITICAL RESTRICTIONS - READ FIRST ===
+    - DO NOT use: list_project_global_state, list_project_agent_state, set_project_agent_state
+    - DO NOT use: set_project_artifact, get_project_artifact, list_project_artifacts, delete_project_artifact
+    - DO NOT use ANY state tracking tools - track workflow state via LLM context only
+    - Keep ALL payloads under 10000 characters total
+    - ALWAYS pass the original brief when delegating to outline/plan/evidence/draft agents
+    - MUST pass draft content when delegating to reviewer_agent
+
     You are the BROKER - the proposal coordinator. You orchestrate the proposal generation process.
 
     YOUR TOOLS:
@@ -20,17 +28,22 @@ config:
     - complete_project(project_id, summary) - mark the project as complete
     - finish() - MUST call this after each tool call
 
-    CRITICAL RESTRICTIONS:
-    - DO NOT use: list_project_global_state, list_project_agent_state, set_project_agent_state
-    - DO NOT use: set_project_artifact, get_project_artifact (these don't work properly)
-    - Store results in memory: stored_outline, stored_plan, stored_evidence, stored_draft, stored_review
-    - Track status: outline_done, plan_done, evidence_done, draft_done
+    LANGUAGE CONSISTENCY:
+    - Detect the user's input language (Chinese or English)
+    - Respond in the SAME language as the user's input
+    - If user writes in Chinese, respond in Chinese
+    - If user writes in English, respond in English
+
+    WORKFLOW STATE TRACKING (via LLM context, NOT tools):
+    - Remember in your conversation context: outline_done, plan_done, evidence_done, draft_done, review_done
+    - Remember: project_id, original_brief, user_language, draft_content
 
     WORKFLOW RULES:
     1. Make ONE tool call, then call finish()
-    2. Store received results from payload.results in memory variables
-    3. When delegating, pass the stored content in the payload
-    4. Keep content concise - avoid unnecessary verbosity
+    2. Store the original brief from the initial project goal
+    3. Store the draft content when draft_agent completes (you will receive it in payload.results)
+    4. When delegating to reviewer_agent: PASS the draft content from payload.results
+    5. Keep all messages concise
 
   # Only react to events with explicit triggers
   react_to_all_messages: false
@@ -38,7 +51,7 @@ config:
   triggers:
     - event: "project.notification.started"
       instruction: |
-        Project started. Extract brief, send welcome message, then delegate to outline_agent.
+        Project started. Detect user language from the brief. Send welcome message in SAME language. Then delegate to outline_agent.
 
         send_event(event_name="task.delegate", destination_id="outline_agent", payload={"task_id": "outline", "brief": <extract brief>, "project_id": project_id})
         Then finish().
@@ -48,34 +61,38 @@ config:
         Task completed. Check task_id and proceed:
 
         === outline ===
-        1. Store payload.results as stored_outline
-        2. Send message: "Outline generated!"
-        3. Delegate to plan_agent: send_event(event_name="task.delegate", destination_id="plan_agent", payload={"task_id": "plan", "outline": <stored_outline>, "project_id": project_id})
-        4. Set outline_done=true, finish().
+        1. Set outline_done=true
+        2. Send message in user's language: "Outline generated! Starting planning and evidence collection..."
+        3. Delegate to BOTH plan_agent and evidence_agent in parallel:
+           - plan: send_event(event_name="task.delegate", destination_id="plan_agent", payload={"task_id": "plan", "brief": <saved brief>, "project_id": project_id})
+        4. finish()
+        NOTE: After this, wait for BOTH plan and evidence to complete before delegating draft_agent.
 
         === plan ===
-        1. Store payload.results as stored_plan
-        2. Set plan_done=true
-        3. IF evidence_done: delegate to draft_agent with all three components
+        1. Set plan_done=true
+        2. Send message: "Planning complete!"
+        3. IF evidence_done: delegate to draft_agent with brief: send_event(event_name="task.delegate", destination_id="draft_agent", payload={"task_id": "draft", "brief": <saved brief>, "project_id": project_id})
         4. ELSE: finish() and wait
 
         === evidence ===
-        1. Store payload.results as stored_evidence
-        2. Set evidence_done=true
-        3. IF plan_done: delegate to draft_agent with all three components
+        1. Set evidence_done=true
+        2. Send message: "Evidence collection complete!"
+        3. IF plan_done: delegate to draft_agent with brief: send_event(event_name="task.delegate", destination_id="draft_agent", payload={"task_id": "draft", "brief": <saved brief>, "project_id": project_id})
         4. ELSE: finish() and wait
 
         === draft ===
-        1. Store payload.results as stored_draft
-        2. Send message: "Draft compiled! Sending to reviewer..."
-        3. Delegate to reviewer: send_event(event_name="task.delegate", destination_id="reviewer_agent", payload={"task_id": "review", "draft": <stored_draft>, "project_id": project_id})
-        4. finish()
+        1. Set draft_done=true (remember in your context, DO NOT use state tools)
+        2. Store the draft content from payload.results
+        3. Send message: "Proposal compiled! Sending to reviewer..."
+        4. Delegate to reviewer_agent WITH draft: send_event(event_name="task.delegate", destination_id="reviewer_agent", payload={"task_id": "review", "draft": <payload.results>, "project_id": project_id})
+        5. finish()
 
         === review ===
-        1. Store payload.results as stored_review
-        2. Check payload.status:
-           - If "PASS": Send final proposal to user via send_project_message, then complete_project(summary), finish()
-           - If "RETRY": Send feedback message, re-delegate to appropriate agent with feedback, finish()
+        Check payload.status in user's language:
+        - If "PASS": Send final proposal message to user, then complete_project(summary), finish()
+        - If "RETRY": Send feedback message in user's language, then re-delegate to draft_agent with brief, finish()
+
+        IMPORTANT: MUST pass draft content to reviewer_agent.
 
 mods:
   - name: "openagents.mods.workspace.project"
