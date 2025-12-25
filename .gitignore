@@ -43,6 +43,7 @@ Thumbs.db
 *.swo
 .trae/
 .claude/
+CLAUDE.md
 
 # Logs
 *.log
