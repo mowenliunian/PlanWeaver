@@ -145,33 +145,79 @@ conda activate openagents
 pip install openagents
 ```
 
-### 统一环境变量配置
+### 环境变量配置
 
-本项目使用环境变量统一管理模型配置。请在项目根目录创建 `.env` 文件：
+请在项目根目录创建 `.env` 文件：
 
-编辑 `.env` 文件，填入你的 LLM 配置：
 ```ini
-LLM_API_KEY=your_api_key_here
-LLM_MODEL_NAME=gpt-4
-LLM_API_BASE=https://api.openai.com/v1
+DEEPSEEK_API_KEY=your_api_key_here
 ```
 
-### 启动 Agent
+**说明**：
+- `model_name` 和 `api_base` 已直接配置在各个 agent 的 YAML 文件中
+- 只需通过 `DEEPSEEK_API_KEY` 环境变量注入 API Key
+- YAML 配置中：`model_name: "deepseek-chat"`, `api_base: "https://api.deepseek.com/v1"`
 
-为了简化部署，我们提供了一个统一的启动脚本，可以一键启动网络和所有 Agent：
+### 启动方式
+
+#### 方式一：一键启动/停止（推荐）
 
 ```bash
-# 添加执行权限（仅首次需要）
-chmod +x scripts/start_agents.sh
+# 启动网络 + 所有 Agents
+bash scripts/start_all.sh
 
-# 启动所有服务
-./scripts/start_agents.sh
+# 停止网络 + 所有 Agents
+bash scripts/stop_all.sh
 ```
 
-脚本会自动：
-1. 加载 `.env` 中的环境变量
-2. 启动 OpenAgents 网络节点
-3. 启动所有定义的 Agent (Broker, Outline, Plan, Evidence, Draft, Reviewer)
+#### 方式二：分步控制
+
+```bash
+# 1. 启动网络
+openagents network start network.yaml
+
+# 2. 启动所有 Agents（后台运行）
+bash scripts/start_agents.sh
+
+# 3. 停止所有 Agents
+bash scripts/stop_agents.sh
+```
+
+**说明：**
+- 启动脚本会在后台运行所有 agents
+- 日志文件保存在 `logs/` 目录
+- PID 文件保存在 `pids/` 目录
+
+#### 方式二：手动启动
+
+或者使用 OpenAgents CLI 手动启动网络：
+
+```bash
+# 启动网络
+openagents network start network.yaml
+```
+
+或者在单独的终端中启动各个 Agent：
+
+```bash
+# Terminal 1: Broker
+openagents agent start agents/broker_agent.yaml
+
+# Terminal 2: Outline
+openagents agent start agents/outline_agent.yaml
+
+# Terminal 3: Evidence
+openagents agent start agents/evidence_agent.yaml
+
+# Terminal 4: Plan
+openagents agent start agents/plan_agent.yaml
+
+# Terminal 5: Draft
+openagents agent start agents/draft_agent.yaml
+
+# Terminal 6: Reviewer
+openagents agent start agents/reviewer_agent.yaml
+```
 
 
 ### 可视化交互 (OpenAgents Studio)

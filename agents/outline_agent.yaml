@@ -5,9 +5,8 @@ type: "openagents.agents.collaborator_agent.CollaboratorAgent"
 agent_id: "outline_agent"
 
 config:
-  model_name: "${LLM_MODEL_NAME}"
-  api_base: "${LLM_API_BASE}"
-  api_key: "${LLM_API_KEY}"
+  model_name: "deepseek-chat"
+  api_base: "https://api.deepseek.com/v1"
 
   # Limit iterations for single task
   max_iterations: 3

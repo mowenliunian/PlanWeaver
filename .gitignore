@@ -47,3 +47,5 @@ CLAUDE.md
 
 # Logs
 *.log
+logs/
+pids/

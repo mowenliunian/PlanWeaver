@@ -30,32 +30,40 @@ fi
 # 创建必要的目录
 mkdir -p logs pids
 
-echo "Starting PlanWeaver Agents..."
+echo "Starting PlanWeaver..."
 echo ""
 
-# 检查网络是否运行
-echo "Checking if network is running..."
-if ! curl -s http://localhost:8700 >/dev/null 2>&1; then
-    echo "Warning: Network may not be running at http://localhost:8700"
-    echo "Please start the network first: openagents network start network.yaml"
+# 检查网络是否已运行
+if curl -s http://localhost:8700 >/dev/null 2>&1; then
+    echo "Network is already running at http://localhost:8700"
+    echo "Skipping network startup..."
     echo ""
+else
+    # 启动网络（后台运行）
+    echo "Starting network..."
+    openagents network start network.yaml > logs/network.log 2>&1 &
+    NETWORK_PID=$!
+    echo $NETWORK_PID > pids/network.pid
+    sleep 3
 fi
-echo ""
 
-# 启动所有 Agent（后台运行）
+# 启动所有 Agent
+echo "Starting agents in background..."
 for agent_file in agents/*.yaml; do
     agent_name=$(basename "$agent_file" .yaml)
-    echo "Starting $agent_name..."
+    echo "  Starting $agent_name..."
     openagents agent start "$agent_file" > "logs/${agent_name}.log" 2>&1 &
     echo $! > "pids/${agent_name}.pid"
 done
 
+echo ""
 echo "---------------------------------------------------"
-echo "✅ All agents started in background!"
+echo "✅ PlanWeaver started!"
 echo ""
-echo "Log files: logs/"
-echo "PID files:  pids/"
+echo "Network:  http://localhost:8700"
+echo "Studio:   Run 'openagents studio -s' in another terminal"
+echo "Logs:     logs/"
+echo "PIDs:     pids/"
 echo ""
-echo "To stop all agents, run: bash scripts/stop_agents.sh"
-echo "Or kill manually: pkill -f 'openagents agent start'"
+echo "To stop: bash scripts/stop_all.sh"
 echo ""
