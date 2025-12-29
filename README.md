@@ -234,6 +234,28 @@ openagents studio -s
 *   它会自动连接到本地运行的网络 (`http://localhost:8700`)。
 *   你可以在 Studio 中查看网络拓扑、创建项目并追踪 Agent 之间的消息流。
 
+## 快速演示（Demo）
+
+以下截图展示了从创建项目到生成最终方案提案的完整流程：
+
+### 1. 创建项目
+
+![PlanWeaver Demo - 创建项目](image.png)
+
+### 2. 提出项目需求
+
+![PlanWeaver Demo - 提出项目需求](image-1.png)
+
+### 3. 模板化 Agent 协作并生成最终方案提案
+
+#### 3.1 协作流程
+
+![PlanWeaver Demo - 协作流程](image-2.png)
+
+#### 3.2 最终方案提案
+
+![PlanWeaver Demo - 最终方案提案](image-3.png)
+
 ## 分组与权限约定
 
 本项目采用基于角色的访问控制 (RBAC)，在 `network.yaml` 中定义了以下代理分组及其权限：
